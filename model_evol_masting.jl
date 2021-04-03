@@ -60,18 +60,18 @@ function parse_commandline()
             arg_type = Float64
             help = "variance of resources distribution"
             dest_name = "sigma_K"    
-        "--thr_swi"
+        "--thr_swit"
             arg_type = Float64
-            dest_name = "theta_switching"
-        "--thr_sto"
+            dest_name = "thr_swit"
+        "--thr_stor"
             arg_type = Float64
-            dest_name = "theta_storage"
-        "--a_swi" 
+            dest_name = "thr_stor"
+        "--a_swit" 
             arg_type = Float64
-            dest_name = "a_switching"
-        "--a_sto" 
+            dest_name = "a_swit"
+        "--a_stor" 
             arg_type = Float64
-            dest_name = "a_storage"
+            dest_name = "a_stor"
         "-k"
             arg_type = Float64 
             help = "Strength of increasing return on benefits (pollen effiency hypothesis)"
@@ -79,6 +79,10 @@ function parse_commandline()
         "--N_mid"
             arg_type = Float64 
             help = "midpoint of the sigmoid of increase of fitness as a function of total number of seeds from other plants"
+        "--init"
+            arg_type = String
+            help = "composition of the initial population either matching, switching, storage or random"
+            dest_name = "population_initial"  
         end
     return parse_args(s)
 end
@@ -133,7 +137,7 @@ function get_name_file(wd::String,parameters::Dict,parameters_to_omit::Array{Str
     return(wd*get_name_model()*name_file*"-S="*string(i_simul)*format)
 end
 
-function replicator(wd::String, parameters_to_omit)
+function replicator(wd::String, name_model, parameters_to_omit)
     #If on my directory and to print in Res
     parameters = parse_commandline()
     df_res= DataFrame()
@@ -158,20 +162,21 @@ end
 
 
 
-function update_function_ecology(cumul_population,resources,stock, theta_switching, theta_storage, a_storage, a_switching)
+function update_function_ecology(cumul_population,resources,stock, thr_swit, thr_stor, a_stor, a_swit)
     cumul_population
     alpha=fill(-1.,cumul_population[3])
     alpha[1:cumul_population[1]] .= 1.
-    alpha[(cumul_population[1]+1):cumul_population[2]] .=  (resources > theta_switching)*a_switching
-    alpha[(cumul_population[2]+1):cumul_population[3]] .=  (stock[(cumul_population[2]+1):cumul_population[3]] .> theta_storage).*a_storage
+    alpha[(cumul_population[1]+1):cumul_population[2]] .=  (resources > thr_swit)*a_swit
+    alpha[(cumul_population[2]+1):cumul_population[3]] .=  (stock[(cumul_population[2]+1):cumul_population[3]] .> thr_stor).*a_stor
     n_seeds = alpha .* (stock .+ resources)
     remaining_stock = (1 .- alpha) .* (stock .+ resources)
     return(alpha, n_seeds, remaining_stock)
 end
 
 
-function model_ecology(n_step,population, distribution_resources, k, theta_switching, theta_storage, a_storage, a_switching, print_output::Bool)
+function model_ecology(n_step,population, mean_K,sigma_K, k, thr_swit, thr_stor, a_stor, a_swit, print_output::Bool)
     N = sum(population)
+    distribution_resources=Truncated(Normal(mean_K,sigma_K),0,Inf)
     resources = rand(distribution_resources, n_step)
     alpha = zeros(n_step, N)
     n_seeds = zeros(n_step, N)
@@ -180,7 +185,7 @@ function model_ecology(n_step,population, distribution_resources, k, theta_switc
     cumul_population = cumsum(population)
     for i in 1:(n_step-1)
         #I think we can remove the assignement
-        alpha[i+1,:], n_seeds[i+1,:],stock[i+1,:] = update_function_ecology(cumul_population, resources[i], stock[i,:], theta_switching, theta_storage, a_storage, a_switching)
+        alpha[i+1,:], n_seeds[i+1,:],stock[i+1,:] = update_function_ecology(cumul_population, resources[i], stock[i,:], thr_swit, thr_stor, a_stor, a_swit)
 
         #Pollen efficiency
         #First part is total of other seeds produced, second is number of seeds produced by an individual
@@ -246,20 +251,28 @@ function model(parameters::Dict, i_simul::Int64)
     #Set seed
     Random.seed!(i_simul)
     n_gen_printed = floor(Int,(n_gen - n_print)/jump_print)
-    distribution_resources=Truncated(Normal(mean_K,sigma_K),0,Inf)
+    
 
     if detail == 1
         df_res = DataFrame(i_simul=repeat([i_simul],inner=n_gen_printed*3),
-        gen = repeat(n_print:jump_print:(n_gen-1),inner=3), 
+        gen = repeat(n_print:jump_print:(n_gen-1),inner=3),
         strategy = repeat(["matching","switching","storage"],outer=n_gen_printed),
         n_ind = zeros(n_gen_printed*3),
         fitness_relative = zeros(n_gen_printed*3))
     end
 
     #Apparently it is not that simple to generate three random number that sums to N
-    population = reproduction_WG(n_pop,[1.,1.,1.],0.)
+    if population_initial == "random"
+        population = reproduction_WG(n_pop,[1.,1.,1.],0.)
+    elseif population_initial == "matching"
+        population = reproduction_WG(n_pop,[1.,0.,0.],0.)
+    elseif population_initial == "switching"
+        population = reproduction_WG(n_pop,[0.,1.,0.],0.)
+    elseif population_initial == "storage"
+        population = reproduction_WG(n_pop,[0.,0.,1.],0.)
+    end
     for i in 0:(n_gen-1)
-        fitness = model_ecology(n_step,population, distribution_resources, k, theta_switching, theta_storage, a_storage, a_switching, false)
+        fitness = model_ecology(n_step,population, mean_K, sigma_K, k, thr_swit, thr_stor, a_stor, a_swit, false)
         #Write output
         if i%jump_print == 0
             if detail == 1
@@ -275,12 +288,12 @@ end
 
 #Make evolutionary simulation
 wd=pwd()*"/"
-replicator(wd,["write","jump_print","detail"])
+replicator(wd,model,["write","jump_print","detail",])
 
 
 #To make ecology simulation (Need to be updated)
 #parameters = parse_commandline()
 #for key in keys(parameters) eval(:($(Symbol(key)) = $(parameters[key]))) end
-#df_res=model_ecology(n_step,[20,20,20], Truncated(Normal(mean_K,sigma_K),0,Inf), k, theta_switching, theta_storage, a_storage, a_switching, true)
+#df_res=model_ecology(n_step,[20,20,20], Truncated(Normal(mean_K,sigma_K),0,Inf), k, thr_swit, thr_stor, a_stor, a_swit, true)
 #CSV.write(wd*"valentin_trees_res.csv", df_res)
 
