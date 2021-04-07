@@ -1,0 +1,1 @@
+julia model_evol_masting_moran.jl -w -S 1 -G 100 --print 0 --jPrint 10 --de 1 --nPop 10 --mu 0.01 --meanK 1 --sigK 0.2 --thr_swi 1 --thr_sto 5 --a_swi 1. --a_sto 1. -k 0.05 --N_mid 100 --init random --n_dead 1
