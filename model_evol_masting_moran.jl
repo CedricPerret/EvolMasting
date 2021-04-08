@@ -284,8 +284,7 @@ function model(parameters::Dict, i_simul::Int64)
         resources = rand(distribution_resources)
         alpha = calculate_alpha.(population, resources, stock,thr_swit, thr_stor, a_stor, a_swit)
         n_seeds = alpha .* (stock .+ resources)
-        remaining_stock = (1 .- alpha) .* (stock .+ resources)
-
+        stock = (1 .- alpha) .* (stock .+ resources)
         fitness = n_seeds ./ (1 .+ exp.(-k .* ((sum(n_seeds) .- n_seeds) .- N_mid)))
 
         for i in 1:n_dead
