@@ -164,9 +164,11 @@ function calculate_alpha(strategy, resources, stock,thr_swit, thr_stor, a_stor, 
     if strategy == 1
         return(1)
     elseif strategy == 2
-        return((resources > thr_swit)*a_swit)
+        #return((resources > thr_swit)*a_swit)
+        return((1-a_swit) + (resources > thr_swit)*a_swit)
     elseif strategy == 3
-        return((stock > thr_stor)*a_stor)
+        #return((stock > thr_stor)*a_stor)
+        return((1-a_stor) + (stock > thr_stor)*a_stor)
     else
         print("Error: Unknown strategy")
     end

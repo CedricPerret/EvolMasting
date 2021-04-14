@@ -1,6 +1,8 @@
 source("C:/Users/cedri/OneDrive/Research/B1-Codes/R_template/Toolbox.R")
 
-f_plot_math("1/(1+exp(-0.02*(x-300)))",0,500)
+f_plot_math("1/(1+exp(-0.05*(x-100)))",0,4000)
+
+f_plot_math("1/(1+exp(-0.003*(x-2000)))",0,4000)
 
 wd="C:/Users/cedri/OneDrive/Research/B1-Codes"
 setwd(wd)
