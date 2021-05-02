@@ -24,10 +24,10 @@ function parse_commandline()
         "--nSimul", "-S"
             arg_type = Int64
             dest_name = "n_simul"
-        "--nYear"
+        "--nGen", "-G"
             arg_type = Int64
-            help = "Total number of yeareration"
-            dest_name = "n_year"
+            help = "Total number of generation"
+            dest_name = "n_gen"
         "--print"
             arg_type = Int64
             help = "Generation from which output is saved"
@@ -55,53 +55,31 @@ function parse_commandline()
         "--sigK"
             arg_type = Float64
             help = "variance of resources distribution"
-            dest_name = "sigma_K" 
-        "--N_y"
-            arg_type = Float64
-            help = "Interval for masting for alternate strategy"
+            dest_name = "sigma_K"    
         "--thr_swit"
             arg_type = Float64
-            help = "Threshold for switching"
+            dest_name = "thr_swit"
         "--thr_stor"
             arg_type = Float64
-            help = "Threshold for storage"
-        "-p" 
+            dest_name = "thr_stor"
+        "--k_swit" 
             arg_type = Float64
-            help = "proportion of resources ALWAYS allocated to reproduction"
-        "--coef_a" 
+        "--k_stor" 
             arg_type = Float64
-            help = "Coefficient for functional response"
-            dest_name = "a"
-        "--coef_h" 
-            arg_type = Float64
-            help = "handling rate for functional response"
-            dest_name = "h"
-        "-c"
-            arg_type = Float64
-            help = "Survival rate of predator"
-        "--beta"
+        "-beta"
             arg_type = Float64 
             help = "Strength of increasing return on benefits (pollen effiency hypothesis)"
             dest_name = "beta"  
+        "--N_mid"
+            arg_type = Float64 
+            help = "midpoint of the sigmoid of increase of fitness as a function of total number of seeds from other plants"
         "--init"
             arg_type = String
             help = "composition of the initial population either matching, switching, storage or random"
             dest_name = "pop_init"  
-        "--D_zero"
-            arg_type = Float64
-            help = "CONSTANT proportion of dead individuals by year"
-        "--D_mid"
-            arg_type = Float64
-            help = "Amount of resources for which half of the population die"
-        "--D_inc"
-            arg_type = Float64
-            help = "shape of the sigmoid of mortality on resources"
-        "--M_zero"
-            arg_type = Float64
-            help = "Initial number of predator when population is extinct"
-        "--gamma_zero"
-            arg_type = Float64
-            help = "CONSTANT death rate of seeds"
+        "--n_dead"
+            arg_type = Int64
+            help = "Number of dead individuals by year"
         end
     return parse_args(s)
 end
@@ -180,146 +158,150 @@ function replicator(wd::String, name_model, parameters_to_omit)
 end
 
 
-function calculate_alpha(strategy, resources, stock,thr_swit, thr_stor, N_y, year, p)
-    #Matching
+function calculate_alpha(strategy, resources, stock,thr_swit, thr_stor, k_stor, k_swit)
     if strategy == 1
-        return(1.)
-    #Alternate
+        return(1)
     elseif strategy == 2
-        return(p + (1-p)*(year%N_y == 0))
-    #Switching
+        #return((resources > thr_swit)*a_swit)
+        return(k_swit + (resources > thr_swit)*(1-k_swit))
     elseif strategy == 3
-        return(p + (1-p)*(resources > thr_swit))
-    #Reverse switching
-    elseif strategy == 4
-    return(p + (1-p)*(resources < thr_swit))
-    #Storage
-    elseif strategy == 5
-        return(p + (1-p)*(stock > thr_stor))
+        #return((stock > thr_stor)*a_stor)
+        return(k_stor + (stock > thr_stor)*(1-k_stor))
     else
         print("Error: Unknown strategy")
     end
 end
 
+
+
+function model_ecology(n_step,population, mean_K,sigma_K, k, thr_swit, thr_stor, k_stor, k_swit, print_output::Bool)
+    N = sum(population)
+    distribution_resources=Truncated(Normal(mean_K,sigma_K),0,Inf)
+    resources = rand(distribution_resources, n_step)
+    alpha = zeros(n_step, N)
+    n_seeds = zeros(n_step, N)
+    stock = zeros(n_step, N)
+    fitness = zeros(n_step, N)
+    cumul_population = cumsum(population)
+    for i in 1:(n_step-1)
+        #I think we can remove the assignement
+        alpha[i+1,:], n_seeds[i+1,:],stock[i+1,:] = update_function_ecology(cumul_population, resources[i], stock[i,:], thr_swit, thr_stor, k_stor, k_swit)
+
+        #Pollen efficiency
+        #First part is total of other seeds produced, second is number of seeds produced by an individual
+        #fitness[i+1,:] = ((sum(n_seeds[i+1,:]) .- n_seeds[i+1,:]) .* n_seeds[i+1,:]) .^ k
+        fitness[i+1,:] = n_seeds[i+1,:] ./ (1 .+ exp.(-beta .* ((sum(n_seeds[i+1,:]) .- n_seeds[i+1,:]) .- N_mid)))
+
+    end
+
+    #fitness_total = fitness ./ n_step
+    if print_output == true
+        return(DataFrame(n_step = repeat(1:n_step,inner=N),
+        ind = repeat(1:N,outer=n_step),
+        #; for vertical concatenation
+        strategy = repeat([repeat(["Matching"],population[1]); repeat(["Switching"],population[2]); repeat(["Storage"],population[3])],n_step),
+        alpha = dropdims(reshape(alpha',(1,N*n_step)),dims=1),
+        n_seeds= dropdims(reshape(n_seeds',(1,N*n_step)),dims=1),
+        stock= dropdims(reshape(stock',(1,N*n_step)),dims=1),
+        fitness= dropdims(reshape(fitness',(1,N*n_step)),dims=1)))
+    else
+    #We want the relative fitness (If a tree has less generation, it will have less total number of seeds but more generations)
+    #We measure fitness on a given period.
+    #If mean, it was dimension 1
+    return([sum(fitness[:,1:cumul_population[1]]),
+        sum(fitness[:,(cumul_population[1]+1):cumul_population[2]]),
+        sum(fitness[:,(cumul_population[2]+1):cumul_population[3]])])
+    end
+end
+
+
+
+#function reproduction_replicator()
+    #Weighted mean using matrix
+#    mean_fitness = fitness' * prop_population
+    #We can use the replicator equations (if we consider deterministic evolution)
+    #We need to use the discrete version of replicator equations
+    #Type 1 (Need to be careful of the value of k)
+    #prop_population .+ prop_population .* k .* (fitness .- mean_fitness) 
+    #Using Jorgen Weibul.Evolutionary Game Theory (Type 2 on wikipedia)
+#    new_population = ((k .+ fitness)./((k .+ mean_fitness))) .* prop_population
+    
+    #Or we can simulate everything. Just do sampling with weigth.
+#end
+
 function mutation(mu, strategy)
     if rand() < mu
-        return(rand(deleteat!([1,2,3,4,5],strategy)))
+        return(rand(deleteat!([1,2,3],strategy)))
     else
         return(strategy)
     end
 end
 
-function calculate_fertilised_flowers(n_flowers, n_pop, beta)
-    return(clamp((n_flowers/(n_pop-1))^beta,0,1))
-end
-
-function functional_response(n_total_seeds,a,h)
-    return((a*n_total_seeds)/(1+a*h*n_total_seeds))
-end
-
-function calculate_gamma(gamma_zero, n_total_seeds, n_predator, a, h)
-    if gamma_zero != 0
-        gamma = gamma_zero
-    else
-        gamma = 1 - exp(-(functional_response(n_total_seeds,a, h)*n_predator)/n_total_seeds)
-    end
-    return(gamma)
-end
 
 function model(parameters::Dict, i_simul::Int64)
     #Set parameters from dictionaries to local variable (only to improve readability)
     for key in keys(parameters) eval(:($(Symbol(key)) = $(parameters[key]))) end
     #Set seed
     Random.seed!(i_simul)
-    n_year_printed = floor(Int,(n_year - n_print)/jump_print)
+    n_gen_printed = floor(Int,(n_gen - n_print)/jump_print)
     distribution_resources=Truncated(Normal(mean_K,sigma_K),0,Inf)
     
 
     if detail == 0
-        df_res = DataFrame(i_simul=repeat([i_simul],inner=n_year_printed*5),
-        year = repeat(n_print:jump_print:(n_year-1),inner=5),
-        strategy = repeat(["matching","alternate","switching","reversed switching","storage"],outer=n_year_printed),
-        n_ind = zeros(n_year_printed*5),
-        n_predator = zeros(n_year_printed*5))
+        df_res = DataFrame(i_simul=repeat([i_simul],inner=n_gen_printed*3),
+        gen = repeat(n_print:jump_print:(n_gen-1),inner=3),
+        strategy = repeat(["matching","switching","storage"],outer=n_gen_printed),
+        n_ind = zeros(n_gen_printed*3))
     elseif detail == 1
-        df_res = DataFrame(i_simul=repeat([i_simul],inner=n_year_printed*n_pop),
-        year = repeat(n_print:jump_print:(n_year-1),inner=n_pop),
-        population = zeros(n_year_printed * n_pop),
-        resources = zeros(n_year_printed*n_pop),
-        alpha = zeros(n_year_printed*n_pop),
-        n_flowers = zeros(n_year_printed*n_pop),
-        n_seeds = zeros(n_year_printed*n_pop),
-        n_surviving_seeds = zeros(n_year_printed*n_pop),
-        stock = zeros(n_year_printed*n_pop),
-        n_predator = zeros(n_year_printed*n_pop))
+        df_res = DataFrame(i_simul=repeat([i_simul],inner=n_gen_printed*n_pop),
+        gen = repeat(n_print:jump_print:(n_gen-1),inner=n_pop),
+        population = zeros(n_gen_printed * n_pop),
+        resources = zeros(n_gen_printed*n_pop),
+        alpha = zeros(n_gen_printed*n_pop),
+        n_seeds = zeros(n_gen_printed*n_pop),
+        fitness = zeros(n_gen_printed*n_pop),
+        stock = zeros(n_gen_printed*n_pop))
     end
 
 
+
     if pop_init == "random"
-        population = sample(1:5, Weights([1.,1.,1.,1.,1.]),n_pop)
+        population = sample(1:3, Weights([1.,1.,1.]),n_pop)
     elseif pop_init == "matching"
-        population = sample(1:5, Weights([1.,0,0,0,0]),n_pop)
-    elseif pop_init == "alternate"
-        population = sample(1:5, Weights([0,1.,0,0,0]),n_pop)
+        population = sample(1:3, Weights([1.,0.,0.]),n_pop)
     elseif pop_init == "switching"
-        population = sample(1:5, Weights([0,0,1.,0,0]),n_pop)
-    elseif pop_init == "reversed switching"
-        population = sample(1:5, Weights([0,0,0,1.,0]),n_pop)
+        population = sample(1:3, Weights([0.,1.,0.]),n_pop)
     elseif pop_init == "storage"
-        population = sample(1:5, Weights([0.,0.,0.,0.,1.]),n_pop)
+        population = sample(1:3, Weights([0.,0.,1.]),n_pop)
     end
 
     alpha = zeros(n_pop)
     n_seeds = zeros(n_pop)
-    n_surviving_seeds = zeros(n_pop)
     stock = zeros(n_pop)
     fitness = zeros(n_pop)
-    n_predator = M_zero
 
-    for i in 0:(n_year-1)
-        #Allocation
+    for i in 0:(n_gen-1)
         resources = rand(distribution_resources)
-        alpha = calculate_alpha.(population, resources, stock,thr_swit, thr_stor, N_y, n_year, p)
+        alpha = calculate_alpha.(population, resources, stock,thr_swit, thr_stor, k_stor, k_swit)
+        n_seeds = alpha .* (stock .+ resources)
         stock = (1 .- alpha) .* (stock .+ resources)
-        n_flowers = alpha .* (stock .+ resources)
+        fitness = n_seeds ./ (1 .+ exp.(-k .* ((sum(n_seeds) .- n_seeds) .- N_mid)))
 
-        #Fertilisation
-        n_seeds = n_surviving_seeds .+ calculate_fertilised_flowers.(n_flowers, n_pop, beta)
-
-        #Predation
-        gamma = calculate_gamma(gamma_zero, sum(n_seeds), n_predator, a, h)
-        n_surviving_seeds = (1 .- gamma) .* n_seeds
-        n_predator = c * sum(n_seeds) * gamma
-        
-        #Calculate number of dead adult individual
-        if D_zero != 0
-            n_dead = D_zero
-        else
-            n_dead = ceil(N/(1+exp(-D_inc*(resources-D_mid))))
-        end
-
-        #Reproduction
         for i in 1:n_dead
-            parent = sample(1:n_pop, Weights(n_surviving_seeds))
-            #We remove the seeds that grow from the bank of seeds
-            n_surviving_seeds[parent] = n_surviving_seeds[parent] -= 1
-            splice!(population,rand(1:n_pop),mutation(mu, population[parent] ))
+            splice!(population,rand(1:n_pop),mutation(mu,sample(population,Weights(fitness))))
         end
 
         #Write output
         if i%jump_print == 0
             if detail == 0
-                df_res.n_ind[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = [count(x->x==1,population),count(x->x==2,population),count(x->x==3,population),count(x->x==4,population),count(x->x==5,population)]
-                df_res.n_predator[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_predator],5)
+                df_res.n_ind[(3*(floor(Int,i/jump_print)-n_print)+1):(3*(1+floor(Int,i/jump_print)-n_print))] = [count(x->x==1,population),count(x->x==2,population),count(x->x==3,population)]
             elseif detail == 1
                 df_res.population[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = population
                 df_res.resources[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([resources],n_pop)
-                df_res.alpha[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = alpha
-                df_res.n_flowers[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_flowers
                 df_res.n_seeds[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_seeds
-                df_res.n_surviving_seeds[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_surviving_seeds
+                df_res.fitness[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = fitness
                 df_res.stock[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = stock
-                df_res.n_predator[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_predator],n_pop)
+                df_res.alpha[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = alpha
             end
         end
     end

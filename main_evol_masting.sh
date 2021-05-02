@@ -1,1 +1,1 @@
-julia model_evol_masting.jl -w -S 100 -G 100 --print 0 --jPrint 1 --de 1 --nPop 100 --mu 0.01 --nStep 50 --meanK 1 --sigK 0.2 --thr_swi 1 --thr_sto 5 --a_swi 1. --a_sto 1. -k 0.05 --N_mid 100 --init switching
+julia model_evol_masting.jl -w -S 1 --nYear 100 --print 0 --jPrint 1 --de 1 --nPop 10 --mu 0.01 --meanK 3 --sigK 1 --N_y 2 --thr_swit 3 --thr_stor 6 -p 0 --coef_a 2 --coef_h 1 -c 0.5 --beta 1 --init random --D_zero 0.1 --D_mid 3 --D_inc 0.8 --M_zero 0.5 --gamma_zero 0.5

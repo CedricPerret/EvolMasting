@@ -48,6 +48,10 @@ function parse_commandline()
             arg_type = Float64
             help = "Mutation rate"
             dest_name = "mu"
+        "--nStep"
+            arg_type = Int64
+            help = "Number of reproduction by generation"
+            dest_name = "n_step"
         "--meanK"
             arg_type = Float64
             help = "mean value of resources distribution"
@@ -78,10 +82,7 @@ function parse_commandline()
         "--init"
             arg_type = String
             help = "composition of the initial population either matching, switching, storage or random"
-            dest_name = "pop_init"  
-        "--n_dead"
-            arg_type = Int64
-            help = "Number of dead individuals by year"
+            dest_name = "population_initial"  
         end
     return parse_args(s)
 end
@@ -160,20 +161,17 @@ function replicator(wd::String, name_model, parameters_to_omit)
 end
 
 
-function calculate_alpha(strategy, resources, stock,thr_swit, thr_stor, a_stor, a_swit)
-    if strategy == 1
-        return(1)
-    elseif strategy == 2
-        #return((resources > thr_swit)*a_swit)
-        return((1-a_swit) + (resources > thr_swit)*a_swit)
-    elseif strategy == 3
-        #return((stock > thr_stor)*a_stor)
-        return((1-a_stor) + (stock > thr_stor)*a_stor)
-    else
-        print("Error: Unknown strategy")
-    end
-end
 
+function update_function_ecology(cumul_population,resources,stock, thr_swit, thr_stor, a_stor, a_swit)
+    cumul_population
+    alpha=fill(-1.,cumul_population[3])
+    alpha[1:cumul_population[1]] .= 1.
+    alpha[(cumul_population[1]+1):cumul_population[2]] .=  (resources > thr_swit)*a_swit
+    alpha[(cumul_population[2]+1):cumul_population[3]] .=  (stock[(cumul_population[2]+1):cumul_population[3]] .> thr_stor).*a_stor
+    n_seeds = alpha .* (stock .+ resources)
+    remaining_stock = (1 .- alpha) .* (stock .+ resources)
+    return(alpha, n_seeds, remaining_stock)
+end
 
 
 function model_ecology(n_step,population, mean_K,sigma_K, k, thr_swit, thr_stor, a_stor, a_swit, print_output::Bool)
@@ -218,6 +216,13 @@ end
 
 
 
+function reproduction_WG(n_pop,fitness,mu)
+    relative_fitness = fitness / sum(fitness)
+    new_population_complete = sample(1:3, Weights(relative_fitness),n_pop)
+    new_population_complete = mutation.(mu,new_population_complete)
+    return([count(x->x==1,new_population_complete),count(x->x==2,new_population_complete),count(x->x==3,new_population_complete)])
+end
+
 #function reproduction_replicator()
     #Weighted mean using matrix
 #    mean_fitness = fitness' * prop_population
@@ -246,66 +251,37 @@ function model(parameters::Dict, i_simul::Int64)
     #Set seed
     Random.seed!(i_simul)
     n_gen_printed = floor(Int,(n_gen - n_print)/jump_print)
-    distribution_resources=Truncated(Normal(mean_K,sigma_K),0,Inf)
     
 
     if detail == 0
         df_res = DataFrame(i_simul=repeat([i_simul],inner=n_gen_printed*3),
         gen = repeat(n_print:jump_print:(n_gen-1),inner=3),
         strategy = repeat(["matching","switching","storage"],outer=n_gen_printed),
-        n_ind = zeros(n_gen_printed*3))
-    elseif detail == 1
-        df_res = DataFrame(i_simul=repeat([i_simul],inner=n_gen_printed*n_pop),
-        gen = repeat(n_print:jump_print:(n_gen-1),inner=n_pop),
-        population = zeros(n_gen_printed * n_pop),
-        resources = zeros(n_gen_printed*n_pop),
-        alpha = zeros(n_gen_printed*n_pop),
-        n_seeds = zeros(n_gen_printed*n_pop),
-        fitness = zeros(n_gen_printed*n_pop),
-        stock = zeros(n_gen_printed*n_pop))
+        n_ind = zeros(n_gen_printed*3),
+        fitness_relative = zeros(n_gen_printed*3))
     end
 
-
-
-    if pop_init == "random"
-        population = sample(1:3, Weights([1.,1.,1.]),n_pop)
-    elseif pop_init == "matching"
-        population = sample(1:3, Weights([1.,0.,0.]),n_pop)
-    elseif pop_init == "switching"
-        population = sample(1:3, Weights([0.,1.,0.]),n_pop)
-    elseif pop_init == "storage"
-        population = sample(1:3, Weights([0.,0.,1.]),n_pop)
+    #Apparently it is not that simple to generate three random number that sums to N
+    if population_initial == "random"
+        population = reproduction_WG(n_pop,[1.,1.,1.],0.)
+    elseif population_initial == "matching"
+        population = reproduction_WG(n_pop,[1.,0.,0.],0.)
+    elseif population_initial == "switching"
+        population = reproduction_WG(n_pop,[0.,1.,0.],0.)
+    elseif population_initial == "storage"
+        population = reproduction_WG(n_pop,[0.,0.,1.],0.)
     end
-
-    alpha = zeros(n_pop)
-    n_seeds = zeros(n_pop)
-    stock = zeros(n_pop)
-    fitness = zeros(n_pop)
-
     for i in 0:(n_gen-1)
-        resources = rand(distribution_resources)
-        alpha = calculate_alpha.(population, resources, stock,thr_swit, thr_stor, a_stor, a_swit)
-        n_seeds = alpha .* (stock .+ resources)
-        stock = (1 .- alpha) .* (stock .+ resources)
-        fitness = n_seeds ./ (1 .+ exp.(-k .* ((sum(n_seeds) .- n_seeds) .- N_mid)))
-
-        for i in 1:n_dead
-            splice!(population,rand(1:n_pop),mutation(mu,sample(population,Weights(fitness))))
-        end
-
+        fitness = model_ecology(n_step,population, mean_K, sigma_K, k, thr_swit, thr_stor, a_stor, a_swit, false)
         #Write output
         if i%jump_print == 0
             if detail == 0
-                df_res.n_ind[(3*(floor(Int,i/jump_print)-n_print)+1):(3*(1+floor(Int,i/jump_print)-n_print))] = [count(x->x==1,population),count(x->x==2,population),count(x->x==3,population)]
-            elseif detail == 1
-                df_res.population[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = population
-                df_res.resources[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([resources],n_pop)
-                df_res.n_seeds[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_seeds
-                df_res.fitness[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = fitness
-                df_res.stock[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = stock
-                df_res.alpha[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = alpha
+                df_res.n_ind[(3*(floor(Int,i/jump_print)-n_print)+1):(3*(1+floor(Int,i/jump_print)-n_print))] = population
+                #We replace to avoid dividing by 0 when there are no individuals of a given strategy (faster than function that check)
+                df_res.fitness_relative[(3*(floor(Int,i/jump_print)-n_print)+1):(3*(1+floor(Int,i/jump_print)-n_print))] = replace!(fitness./population, NaN=>0.)
             end
         end
+        population = reproduction_WG(n_pop,fitness,mu)
     end
     return(df_res)
 end    
