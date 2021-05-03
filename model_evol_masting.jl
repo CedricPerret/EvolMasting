@@ -209,8 +209,8 @@ function mutation(mu, strategy)
     end
 end
 
-function calculate_fertilised_flowers(n_flowers, n_pop, beta)
-    return(clamp((n_flowers/(n_pop-1))^beta,0,1))
+function calculate_fertilised_flowers(n_total_pollen, n_pop, beta)
+    return(clamp((n_total_pollen/(n_pop-1))^beta,0,1))
 end
 
 function functional_response(n_total_seeds,a,h)
@@ -284,7 +284,7 @@ function model(parameters::Dict, i_simul::Int64)
         n_flowers = alpha .* (stock .+ resources)
 
         #Fertilisation
-        n_seeds = n_surviving_seeds .+ calculate_fertilised_flowers.(n_flowers, n_pop, beta)
+        n_seeds = n_surviving_seeds .+ n_flowers .* calculate_fertilised_flowers.(sum(n_flowers).-n_flowers, n_pop, beta)
 
         #Predation
         gamma = calculate_gamma(gamma_zero, sum(n_seeds), n_predator, a, h)
@@ -302,7 +302,7 @@ function model(parameters::Dict, i_simul::Int64)
         for i in 1:n_dead
             parent = sample(1:n_pop, Weights(n_surviving_seeds))
             #We remove the seeds that grow from the bank of seeds
-            n_surviving_seeds[parent] = n_surviving_seeds[parent] -= 1
+            n_surviving_seeds[parent] -= 1
             splice!(population,rand(1:n_pop),mutation(mu, population[parent] ))
         end
 
