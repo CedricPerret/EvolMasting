@@ -238,7 +238,7 @@ function model(parameters::Dict, i_simul::Int64)
     if detail == 0
         df_res = DataFrame(i_simul=repeat([i_simul],inner=n_year_printed*5),
         year = repeat(n_print:jump_print:(n_year-1),inner=5),
-        strategy = repeat(["matching","alternate","switching","reversed switching","storage"],outer=n_year_printed),
+        strategy = repeat(["matching","alternate","switching","reversed","storage"],outer=n_year_printed),
         n_ind = zeros(n_year_printed*5),
         n_predator = zeros(n_year_printed*5))
     elseif detail == 1
@@ -263,7 +263,7 @@ function model(parameters::Dict, i_simul::Int64)
         population = sample(1:5, Weights([0,1.,0,0,0]),n_pop)
     elseif pop_init == "switching"
         population = sample(1:5, Weights([0,0,1.,0,0]),n_pop)
-    elseif pop_init == "reversed switching"
+    elseif pop_init == "reversed"
         population = sample(1:5, Weights([0,0,0,1.,0]),n_pop)
     elseif pop_init == "storage"
         population = sample(1:5, Weights([0.,0.,0.,0.,1.]),n_pop)
