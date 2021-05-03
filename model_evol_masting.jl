@@ -293,7 +293,7 @@ function model(parameters::Dict, i_simul::Int64)
         
         #Calculate number of dead adult individual
         if D_zero != 0
-            n_dead = D_zero
+            n_dead = ceil(D_zero*n_pop)
         else
             n_dead = ceil(N/(1+exp(-D_inc*(resources-D_mid))))
         end
