@@ -240,7 +240,8 @@ function model(parameters::Dict, i_simul::Int64)
         year = repeat(n_print:jump_print:(n_year-1),inner=5),
         strategy = repeat(["matching","alternate","switching","reversed","storage"],outer=n_year_printed),
         n_ind = zeros(n_year_printed*5),
-        n_predator = zeros(n_year_printed*5))
+        n_predator = zeros(n_year_printed*5),
+        n_dead = zeros(n_year_printed*5))
     elseif detail == 1
         df_res = DataFrame(i_simul=repeat([i_simul],inner=n_year_printed*n_pop),
         year = repeat(n_print:jump_print:(n_year-1),inner=n_pop),
@@ -251,7 +252,8 @@ function model(parameters::Dict, i_simul::Int64)
         n_seeds = zeros(n_year_printed*n_pop),
         n_surviving_seeds = zeros(n_year_printed*n_pop),
         stock = zeros(n_year_printed*n_pop),
-        n_predator = zeros(n_year_printed*n_pop))
+        n_predator = zeros(n_year_printed*n_pop),
+        n_dead = zeros(n_year_printed*n_pop))
     end
 
 
@@ -309,6 +311,7 @@ function model(parameters::Dict, i_simul::Int64)
             if detail == 0
                 df_res.n_ind[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = [count(x->x==1,population),count(x->x==2,population),count(x->x==3,population),count(x->x==4,population),count(x->x==5,population)]
                 df_res.n_predator[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_predator],5)
+                df_res.n_dead[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_dead],5)
             elseif detail == 1
                 df_res.population[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = population
                 df_res.resources[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([resources],n_pop)
@@ -318,6 +321,7 @@ function model(parameters::Dict, i_simul::Int64)
                 df_res.n_surviving_seeds[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_surviving_seeds
                 df_res.stock[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = stock
                 df_res.n_predator[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_predator],n_pop)
+                df_res.n_dead[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_dead],n_pop)
             end
         end
     end
