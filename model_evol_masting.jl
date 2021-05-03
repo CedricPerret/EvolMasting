@@ -301,8 +301,6 @@ function model(parameters::Dict, i_simul::Int64)
         #Reproduction
         for i in 1:n_dead
             parent = sample(1:n_pop, Weights(n_surviving_seeds))
-            #We remove the seeds that grow from the bank of seeds
-            n_surviving_seeds[parent] -= 1
             splice!(population,rand(1:n_pop),mutation(mu, population[parent] ))
         end
 
@@ -328,7 +326,7 @@ end
 
 #Make evolutionary simulation
 wd=pwd()*"/"
-replicator(wd,model,["write","jump_print","detail",])
+replicator(wd,model,["write","jump_print",])
 
 
 #To make ecology simulation (Need to be updated)
