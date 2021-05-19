@@ -6,6 +6,10 @@ f_plot_math("1/(1+exp(-0.003*(x-2000)))",0,4000)
 
 f_plot_math("x^6",0,1)
 
+#For proportion of dead individuals
+f_plot_math("1/(1+exp(-0.8*(x-3)))",0,10)+ylim(0,1)
+
+
 wd="C:/Users/cedri/OneDrive/Research/B1-Codes"
 setwd(wd)
 list.files(pattern="csv")

@@ -210,7 +210,7 @@ function mutation(mu, strategy)
 end
 
 function calculate_fertilised_flowers(n_total_pollen, n_pop, beta)
-    return(clamp(0.1*(n_total_pollen/(n_pop-1))^beta,0,1))
+    return(clamp((0.1*n_total_pollen/(n_pop-1))^beta,0,1))
 end
 
 function functional_response(n_total_seeds,a,h)
