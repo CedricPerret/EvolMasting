@@ -249,6 +249,7 @@ function model(parameters::Dict, i_simul::Int64)
         resources = zeros(n_year_printed*n_pop),
         alpha = zeros(n_year_printed*n_pop),
         n_flowers = zeros(n_year_printed*n_pop),
+        fertilisation_rate = zeros(n_year_printed*n_pop),
         n_seeds = zeros(n_year_printed*n_pop),
         n_surviving_seeds = zeros(n_year_printed*n_pop),
         stock = zeros(n_year_printed*n_pop),
@@ -272,6 +273,7 @@ function model(parameters::Dict, i_simul::Int64)
     end
 
     alpha = zeros(n_pop)
+    fertilisation_rate = zeros(n_pop) 
     n_seeds = zeros(n_pop)
     n_surviving_seeds = zeros(n_pop)
     stock = zeros(n_pop)
@@ -286,7 +288,8 @@ function model(parameters::Dict, i_simul::Int64)
         n_flowers = alpha .* (stock .+ resources)
 
         #Fertilisation
-        n_seeds = n_surviving_seeds .+ n_flowers .* calculate_fertilised_flowers.(sum(n_flowers).-n_flowers, n_pop, beta)
+        fertilisation_rate = calculate_fertilised_flowers.(sum(n_flowers).-n_flowers, n_pop, beta)
+        n_seeds = n_surviving_seeds .+ n_flowers .* fertilisation_rate 
 
         #Predation
         gamma = calculate_gamma(gamma_zero, sum(n_seeds), n_predator, a, h)
@@ -317,6 +320,7 @@ function model(parameters::Dict, i_simul::Int64)
                 df_res.resources[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([resources],n_pop)
                 df_res.alpha[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = alpha
                 df_res.n_flowers[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_flowers
+                df_res.fertilisation_rate[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = fertilisation_rate
                 df_res.n_seeds[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_seeds
                 df_res.n_surviving_seeds[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_surviving_seeds
                 df_res.stock[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = stock
