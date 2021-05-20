@@ -197,7 +197,7 @@ function calculate_alpha(strategy, resources, stock,thr_swit, thr_stor, N_y, yea
     elseif strategy == 5
         return(p + (1-p)*(stock > thr_stor))
     else
-        print("Error: Unknown strategy")
+        println("Error: Unknown strategy")
     end
 end
 
@@ -245,6 +245,7 @@ function model(parameters::Dict, i_simul::Int64)
     elseif detail == 1
         df_res = DataFrame(i_simul=repeat([i_simul],inner=n_year_printed*n_pop),
         year = repeat(n_print:jump_print:(n_year-1),inner=n_pop),
+        ID = repeat(1:1:n_pop,outer=n_year_printed),
         population = zeros(n_year_printed * n_pop),
         resources = zeros(n_year_printed*n_pop),
         alpha = zeros(n_year_printed*n_pop),
@@ -277,18 +278,19 @@ function model(parameters::Dict, i_simul::Int64)
     n_seeds = zeros(n_pop)
     n_surviving_seeds = zeros(n_pop)
     stock = zeros(n_pop)
-    fitness = zeros(n_pop)
+    fitness = zeros(n_pop)  
     n_predator = M_zero
 
     for i in 0:(n_year-1)
         #Allocation
         resources = rand(distribution_resources)
-        alpha = calculate_alpha.(population, resources, stock,thr_swit, thr_stor, N_y, n_year, p)
+        alpha = calculate_alpha.(population, resources, stock,thr_swit, thr_stor, N_y, i, p)
+        n_flowers = alpha .* (stock .+ resources) 
         stock = (1 .- alpha) .* (stock .+ resources)
-        n_flowers = alpha .* (stock .+ resources)
+          
 
         #Fertilisation
-        fertilisation_rate = calculate_fertilised_flowers.(sum(n_flowers).-n_flowers, n_pop, beta)
+        fertilisation_rate = calculate_fertilised_flowers.(sum(n_flowers).-n_flowers, n_pop, beta)  
         n_seeds = n_surviving_seeds .+ n_flowers .* fertilisation_rate 
 
         #Predation
@@ -298,16 +300,11 @@ function model(parameters::Dict, i_simul::Int64)
         
         #Calculate number of dead adult individual
         if D_zero != 0
-            n_dead = ceil(D_zero*n_pop)
+            n_dead = ceil(D_zero*n_pop) 
         else
             n_dead = ceil(N/(1+exp(-D_inc*(resources-D_mid))))
         end
 
-        #Reproduction
-        for i in 1:n_dead
-            parent = sample(1:n_pop, Weights(n_surviving_seeds))
-            splice!(population,rand(1:n_pop),mutation(mu, population[parent] ))
-        end
 
         #Write output
         if i%jump_print == 0
@@ -328,13 +325,23 @@ function model(parameters::Dict, i_simul::Int64)
                 df_res.n_dead[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_dead],n_pop)
             end
         end
+
+        #Reproduction
+        for i in 1:n_dead
+            parent = sample(1:n_pop, Weights(n_surviving_seeds))
+            dead = rand(1:n_pop)
+            splice!(population,dead,mutation(mu, population[parent] ))
+            stock[dead] = 0
+            n_surviving_seeds[dead] = 0
+        end
+
     end
     return(df_res)
 end    
 
 #Make evolutionary simulation
 wd=pwd()*"/"
-replicator(wd,model,["write","jump_print",])
+replicator(wd,model,["write","jump_print","mu", "M_zero", "n_print","c","p","coef_a","coef_h"])
 
 
 #To make ecology simulation (Need to be updated)

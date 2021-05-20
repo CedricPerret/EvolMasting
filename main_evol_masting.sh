@@ -1,1 +1,1 @@
-julia model_evol_masting.jl -w -S 1 --nYear 100 --print 0 --jPrint 1 --de 1 --nPop 10 --mu 0.01 --meanK 3 --sigK 1 --N_y 2 --thr_swit 3 --thr_stor 6 -p 0 --coef_a 2 --coef_h 1 -c 0.5 --beta 1 --init random --D_zero 0.1 --D_mid 3 --D_inc 0.8 --M_zero 0.5 --gamma_zero 0.5
+julia model_evol_masting.jl -w -S 1 --nYear 10000 --print 0 --jPrint 1 --de 0 --nPop 500 --mu 0.0001 --meanK 3 --sigK 1 --N_y 2 --thr_swi 3 --thr_sto 6 -p 0 --coef_a 2 --coef_h 1 -c 0.5 --beta 1 --init matching --D_zero 0.01 --D_mid 3 --D_inc 0.8 --M_zero 0.5 --gamma_zero 0.8
