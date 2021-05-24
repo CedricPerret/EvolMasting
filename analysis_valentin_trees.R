@@ -2,7 +2,7 @@ source("C:/Users/cedri/OneDrive/Research/B1-Codes/R_template/Toolbox.R")
 
 f_plot_math("1/(1+exp(-0.05*(x-100)))",0,4000)
 
-f_plot_math("1/(1+exp(-0.003*(x-2000)))",0,4000)
+f_plot_math("1-1/(1+exp(-10*(x-1)))",0,10)
 
 f_plot_math("x^6",0,1)
 
@@ -14,7 +14,7 @@ wd="C:/Users/cedri/OneDrive/Research/A1-Projects/2021_EvolMasting/Code"
 setwd(wd)
 ls=list.files(pattern="csv")
 ls
-data_raw = fread(ls[1])
+data_raw = fread(ls[2])
 data_raw
 
 

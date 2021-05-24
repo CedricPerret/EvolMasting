@@ -239,6 +239,7 @@ function model(parameters::Dict, i_simul::Int64)
         df_res = DataFrame(i_simul=repeat([i_simul],inner=n_year_printed*5),
         year = repeat(n_print:jump_print:(n_year-1),inner=5),
         strategy = repeat(["matching","alternate","switching","reversed","storage"],outer=n_year_printed),
+        resources = zeros(n_year_printed*5),
         n_ind = zeros(n_year_printed*5),
         n_predator = zeros(n_year_printed*5),
         n_dead = zeros(n_year_printed*5))
@@ -246,8 +247,9 @@ function model(parameters::Dict, i_simul::Int64)
         df_res = DataFrame(i_simul=repeat([i_simul],inner=n_year_printed*n_pop),
         year = repeat(n_print:jump_print:(n_year-1),inner=n_pop),
         ID = repeat(1:1:n_pop,outer=n_year_printed),
-        population = zeros(n_year_printed * n_pop),
+        strategy = zeros(n_year_printed * n_pop),
         resources = zeros(n_year_printed*n_pop),
+        age = zeros(n_year_printed*n_pop),
         alpha = zeros(n_year_printed*n_pop),
         n_flowers = zeros(n_year_printed*n_pop),
         fertilisation_rate = zeros(n_year_printed*n_pop),
@@ -280,9 +282,11 @@ function model(parameters::Dict, i_simul::Int64)
     stock = zeros(n_pop)
     fitness = zeros(n_pop)  
     n_predator = M_zero
+    age = zeros(Int64 ,n_pop)
 
     for i in 0:(n_year-1)
         #Allocation
+        age = age .+ 1
         resources = rand(distribution_resources)
         alpha = calculate_alpha.(population, resources, stock,thr_swit, thr_stor, N_y, i, p)
         n_flowers = alpha .* (stock .+ resources) 
@@ -302,7 +306,7 @@ function model(parameters::Dict, i_simul::Int64)
         if D_zero != 0
             n_dead = ceil(D_zero*n_pop) 
         else
-            n_dead = ceil(N/(1+exp(-D_inc*(resources-D_mid))))
+            n_dead = ceil(n_pop-n_pop/(1+exp(-D_inc*(resources-D_mid))))
         end
 
 
@@ -311,10 +315,12 @@ function model(parameters::Dict, i_simul::Int64)
             if detail == 0
                 df_res.n_ind[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = [count(x->x==1,population),count(x->x==2,population),count(x->x==3,population),count(x->x==4,population),count(x->x==5,population)]
                 df_res.n_predator[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_predator],5)
+                df_res.resources[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([resources],5)
                 df_res.n_dead[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_dead],5)
             elseif detail == 1
-                df_res.population[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = population
+                df_res.strategy[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = population
                 df_res.resources[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([resources],n_pop)
+                df_res.age[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = age
                 df_res.alpha[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = alpha
                 df_res.n_flowers[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_flowers
                 df_res.fertilisation_rate[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = fertilisation_rate
@@ -332,7 +338,8 @@ function model(parameters::Dict, i_simul::Int64)
             dead = rand(1:n_pop)
             splice!(population,dead,mutation(mu, population[parent] ))
             stock[dead] = 0
-            n_surviving_seeds[dead] = 0
+            age[dead] = 0
+            n_surviving_seeds[dead] = 0 
         end
 
     end
