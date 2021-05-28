@@ -242,7 +242,9 @@ function model(parameters::Dict, i_simul::Int64)
         resources = zeros(n_year_printed*5),
         n_ind = zeros(n_year_printed*5),
         n_predator = zeros(n_year_printed*5),
-        n_dead = zeros(n_year_printed*5))
+        n_dead = zeros(n_year_printed*5),
+        gamma = zeros(n_year_printed*5),
+        total_seeds = zeros(n_year_printed*5))
     elseif detail == 1
         df_res = DataFrame(i_simul=repeat([i_simul],inner=n_year_printed*n_pop),
         year = repeat(n_print:jump_print:(n_year-1),inner=n_pop),
@@ -301,6 +303,7 @@ function model(parameters::Dict, i_simul::Int64)
         gamma = calculate_gamma(gamma_zero, sum(n_seeds), n_predator, a, h)
         n_surviving_seeds = (1 .- gamma) .* n_seeds
         n_predator = c * sum(n_seeds) * gamma
+
         
         #Calculate number of dead adult individual
         if D_zero != 0
@@ -317,6 +320,8 @@ function model(parameters::Dict, i_simul::Int64)
                 df_res.n_predator[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_predator],5)
                 df_res.resources[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([resources],5)
                 df_res.n_dead[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_dead],5)
+                df_res.gamma[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([gamma],5)
+                df_res.total_seeds[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([sum(n_seeds)],5)
             elseif detail == 1
                 df_res.strategy[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = population
                 df_res.resources[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([resources],n_pop)
@@ -341,7 +346,10 @@ function model(parameters::Dict, i_simul::Int64)
             age[dead] = 0
             n_surviving_seeds[dead] = 0 
         end
-
+        #Migration for predators
+        if n_predator == 0
+            n_predator = M_zero
+        end
     end
     return(df_res)
 end    
