@@ -233,6 +233,8 @@ function model(parameters::Dict, i_simul::Int64)
     Random.seed!(i_simul)
     n_year_printed = floor(Int,(n_year - n_print)/jump_print)
     distribution_resources=Truncated(Normal(mean_K,sigma_K),0,Inf)
+    #distribution_resources=Truncated(Exponential(sigma_K),0,Inf)
+
     
 
     if detail == 0
@@ -244,7 +246,8 @@ function model(parameters::Dict, i_simul::Int64)
         n_predator = zeros(n_year_printed*5),
         n_dead = zeros(n_year_printed*5),
         gamma = zeros(n_year_printed*5),
-        total_seeds = zeros(n_year_printed*5))
+        total_seeds = zeros(n_year_printed*5),
+        fertilisation_rate = zeros(n_year_printed*5))
     elseif detail == 1
         df_res = DataFrame(i_simul=repeat([i_simul],inner=n_year_printed*n_pop),
         year = repeat(n_print:jump_print:(n_year-1),inner=n_pop),
@@ -256,7 +259,6 @@ function model(parameters::Dict, i_simul::Int64)
         n_flowers = zeros(n_year_printed*n_pop),
         fertilisation_rate = zeros(n_year_printed*n_pop),
         n_seeds = zeros(n_year_printed*n_pop),
-        n_surviving_seeds = zeros(n_year_printed*n_pop),
         stock = zeros(n_year_printed*n_pop),
         n_predator = zeros(n_year_printed*n_pop),
         n_dead = zeros(n_year_printed*n_pop))
@@ -280,13 +282,14 @@ function model(parameters::Dict, i_simul::Int64)
     alpha = zeros(n_pop)
     fertilisation_rate = zeros(n_pop) 
     n_seeds = zeros(n_pop)
-    n_surviving_seeds = zeros(n_pop)
+    #n_surviving_seeds = zeros(n_pop)
+    bank_seeds = zeros(5)
     stock = zeros(n_pop)
     fitness = zeros(n_pop)  
     n_predator = M_zero
     age = zeros(Int64 ,n_pop)
 
-    for i in 0:(n_year-1)
+    for i in 1:(n_year-1)
         #Allocation
         age = age .+ 1
         resources = rand(distribution_resources)
@@ -297,19 +300,22 @@ function model(parameters::Dict, i_simul::Int64)
 
         #Fertilisation
         fertilisation_rate = calculate_fertilised_flowers.(sum(n_flowers).-n_flowers, n_pop, beta)  
-        n_seeds = n_surviving_seeds .+ n_flowers .* fertilisation_rate 
+        #n_seeds = n_surviving_seeds .+ n_flowers .* fertilisation_rate 
+        n_seeds = n_flowers .* fertilisation_rate 
+        bank_seeds = bank_seeds .+ [sum((population .== 1) .* n_seeds),sum((population .== 2) .* n_seeds),sum((population .== 3) .* n_seeds),sum((population .== 4) .* n_seeds),sum((population .== 5) .* n_seeds)]
 
         #Predation
-        gamma = calculate_gamma(gamma_zero, sum(n_seeds), n_predator, a, h)
-        n_surviving_seeds = (1 .- gamma) .* n_seeds
-        n_predator = c * sum(n_seeds) * gamma
+        gamma = calculate_gamma(gamma_zero, sum(bank_seeds), n_predator, a, h)
+        n_predator = c * sum(bank_seeds) * gamma
+        bank_seeds = (1 .- gamma) .* bank_seeds
+        
 
         
         #Calculate number of dead adult individual
         if D_zero != 0
-            n_dead = ceil(D_zero*n_pop) 
+            n_dead = Int(ceil(D_zero*n_pop))
         else
-            n_dead = ceil(n_pop-n_pop/(1+exp(-D_inc*(resources-D_mid))))
+            n_dead = Int(ceil(n_pop-n_pop/(1+exp(-D_inc*(resources-D_mid)))))
         end
 
 
@@ -321,7 +327,8 @@ function model(parameters::Dict, i_simul::Int64)
                 df_res.resources[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([resources],5)
                 df_res.n_dead[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_dead],5)
                 df_res.gamma[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([gamma],5)
-                df_res.total_seeds[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([sum(n_seeds)],5)
+                df_res.total_seeds[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = bank_seeds
+                df_res.fertilisation_rate[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = [mean((population .== 1) .* fertilisation_rate),mean((population .== 2) .* fertilisation_rate),mean((population .== 3) .* fertilisation_rate),mean((population .== 4) .* fertilisation_rate),mean((population .== 5) .* fertilisation_rate)]
             elseif detail == 1
                 df_res.strategy[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = population
                 df_res.resources[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([resources],n_pop)
@@ -330,7 +337,6 @@ function model(parameters::Dict, i_simul::Int64)
                 df_res.n_flowers[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_flowers
                 df_res.fertilisation_rate[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = fertilisation_rate
                 df_res.n_seeds[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_seeds
-                df_res.n_surviving_seeds[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_surviving_seeds
                 df_res.stock[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = stock
                 df_res.n_predator[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_predator],n_pop)
                 df_res.n_dead[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_dead],n_pop)
@@ -338,13 +344,13 @@ function model(parameters::Dict, i_simul::Int64)
         end
 
         #Reproduction
-        for i in 1:n_dead
-            parent = sample(1:n_pop, Weights(n_surviving_seeds))
-            dead = rand(1:n_pop)
-            splice!(population,dead,mutation(mu, population[parent] ))
-            stock[dead] = 0
-            age[dead] = 0
-            n_surviving_seeds[dead] = 0 
+        deads = sample(1:n_pop,n_dead,replace=false)
+        for i_dead in deads
+            parent = sample(1:5, Weights(bank_seeds))
+            splice!(population,i_dead,mutation(mu, parent ))
+            stock[i_dead] = 0
+            age[i_dead] = 0
+            #n_surviving_seeds[dead] = 0 
         end
         #Migration for predators
         if n_predator == 0
