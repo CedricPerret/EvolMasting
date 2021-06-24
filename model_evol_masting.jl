@@ -183,13 +183,13 @@ function replicator(wd::String, name_model, parameters_to_omit)
 end
 
 
-function calculate_alpha(strategy, resources, stock,thr_swit, thr_stor, N_y, year, p)
+function calculate_alpha(strategy, resources, stock,thr_swit, thr_stor, N_y, age, p)
     #Matching
     if strategy == 1
         return(1.)
     #Alternate
     elseif strategy == 2
-        return(p + (1-p)*(year%N_y == 0))
+        return(p + (1-p)*(age%N_y == 0))
     #Switching
     elseif strategy == 3
         return(p + (1-p)*(resources > thr_swit))
@@ -234,7 +234,8 @@ function model(parameters::Dict, i_simul::Int64)
     for key in keys(parameters) eval(:($(Symbol(key)) = $(parameters[key]))) end
     #Set seed
     Random.seed!(i_simul)
-    n_year_printed = floor(Int,(n_year+1 - n_print)/jump_print)
+    year_printed = n_print:jump_print:(n_year)
+    n_year_printed = length(year_printed)
     distribution_resources=Truncated(Normal(mean_K,sigma_K),0,Inf)
     #distribution_resources=Truncated(Exponential(sigma_K),0,Inf)
 
@@ -242,7 +243,7 @@ function model(parameters::Dict, i_simul::Int64)
 
     if detail == 0
         df_res = DataFrame(i_simul=repeat([i_simul],inner=n_year_printed*5),
-        year = repeat(n_print:jump_print:(n_year),inner=5),
+        year = repeat(year_printed,inner=5),
         strategy = repeat(["matching","alternate","switching","reversed","storage"],outer=n_year_printed),
         resources = zeros(n_year_printed*5),
         n_ind = zeros(n_year_printed*5),
@@ -296,7 +297,7 @@ function model(parameters::Dict, i_simul::Int64)
         #Allocation
         age = age .+ 1
         resources = rand(distribution_resources)
-        alpha = calculate_alpha.(population, resources, stock,thr_swit, thr_stor, N_y, i, p)
+        alpha = calculate_alpha.(population, resources, stock,thr_swit, thr_stor, N_y, age, p)
         n_flowers = alpha .* (stock .+ resources) 
         stock = (1 .- alpha) .* (stock .+ resources)
           
@@ -323,16 +324,19 @@ function model(parameters::Dict, i_simul::Int64)
 
 
         #Write output
-        if i%jump_print == 0
+        if i%jump_print == 0 && i >= n_print
             if detail == 0
-                df_res.n_ind[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = [count(x->x==1,population),count(x->x==2,population),count(x->x==3,population),count(x->x==4,population),count(x->x==5,population)]
-                df_res.n_predator[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_predator],5)
-                df_res.resources[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([resources],5)
-                df_res.n_dead[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_dead],5)
-                df_res.gamma[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = repeat([gamma],5)
-                df_res.total_seeds[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = bank_seeds
-                df_res.fertilisation_rate[(5*(floor(Int,i/jump_print)-n_print)+1):(5*(1+floor(Int,i/jump_print)-n_print))] = [mean((population .== 1) .* fertilisation_rate),mean((population .== 2) .* fertilisation_rate),mean((population .== 3) .* fertilisation_rate),mean((population .== 4) .* fertilisation_rate),mean((population .== 5) .* fertilisation_rate)]
+                #interval = (5*(floor(Int,(i-n_print)/jump_print))+1):(5*(1+floor(Int,(i-n_print)/jump_print)))
+                interval = (5*(floor(Int,(i-n_print)/jump_print))+1):5*(1+floor(Int,(i-n_print)/jump_print))
+                df_res.n_ind[interval] = [count(x->x==1,population),count(x->x==2,population),count(x->x==3,population),count(x->x==4,population),count(x->x==5,population)]
+                df_res.n_predator[interval] = repeat([n_predator],5)
+                df_res.resources[interval] = repeat([resources],5)
+                df_res.n_dead[interval] = repeat([n_dead],5)
+                df_res.gamma[interval] = repeat([gamma],5)
+                df_res.total_seeds[interval] = bank_seeds
+                df_res.fertilisation_rate[interval] = [mean((population .== 1) .* fertilisation_rate),mean((population .== 2) .* fertilisation_rate),mean((population .== 3) .* fertilisation_rate),mean((population .== 4) .* fertilisation_rate),mean((population .== 5) .* fertilisation_rate)]
             elseif detail == 1
+                interval = (n_pop*(floor(Int,(i-n_print)/jump_print))+1):n_pop*(1+floor(Int,(i-n_print)/jump_print))
                 df_res.strategy[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = population
                 df_res.resources[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([resources],n_pop)
                 df_res.age[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = age

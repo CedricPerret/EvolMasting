@@ -127,8 +127,9 @@ data_raw[,proportion_seeds :=total_seeds/sum(total_seeds),by=.(i_simul,year)]
 data_raw[,sum(total_seeds),by=.(i_simul,strategy)]
 data_raw
 
-ggplot(data_raw,aes(x=year,y=n_ind,fill=strategy))+
-  geom_col(width=1)+
+
+ggplot(data_raw[year%%100==0],aes(x=year,y=n_ind,fill=strategy))+
+  geom_col(width=100)+
   facet_grid(i_simul~.)
 
 ggplot(data_raw[year<10],aes(x=year,y=n_ind,fill=strategy))+
@@ -146,4 +147,8 @@ ggplot(data_raw[i_simul==1&year<11],aes(x=year,y=total_seeds,colour=strategy))+
   facet_grid(strategy~.,scales="free")
 
 ggplot(data_raw[i_simul==1&year<11],aes(x=year,y=proportion_seeds,fill=strategy))+
+  geom_col()
+
+dt = f_summary(data_raw,c("year","strategy"),c("mean","se"))
+ggplot(dt,aes(year,y=mean_n_ind,fill=strategy))+
   geom_col()
