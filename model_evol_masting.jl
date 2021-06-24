@@ -62,6 +62,9 @@ function parse_commandline()
         "--thr_swit"
             arg_type = Float64
             help = "Threshold for switching"
+        "--thr_rev"
+            arg_type = Float64
+            help = "Threshold for switching"
         "--thr_stor"
             arg_type = Float64
             help = "Threshold for storage"
@@ -192,7 +195,7 @@ function calculate_alpha(strategy, resources, stock,thr_swit, thr_stor, N_y, yea
         return(p + (1-p)*(resources > thr_swit))
     #Reverse switching
     elseif strategy == 4
-    return(p + (1-p)*(resources < thr_swit))
+    return(p + (1-p)*(resources < thr_rev))
     #Storage
     elseif strategy == 5
         return(p + (1-p)*(stock > thr_stor))
@@ -231,7 +234,7 @@ function model(parameters::Dict, i_simul::Int64)
     for key in keys(parameters) eval(:($(Symbol(key)) = $(parameters[key]))) end
     #Set seed
     Random.seed!(i_simul)
-    n_year_printed = floor(Int,(n_year - n_print)/jump_print)
+    n_year_printed = floor(Int,(n_year+1 - n_print)/jump_print)
     distribution_resources=Truncated(Normal(mean_K,sigma_K),0,Inf)
     #distribution_resources=Truncated(Exponential(sigma_K),0,Inf)
 
@@ -239,7 +242,7 @@ function model(parameters::Dict, i_simul::Int64)
 
     if detail == 0
         df_res = DataFrame(i_simul=repeat([i_simul],inner=n_year_printed*5),
-        year = repeat(n_print:jump_print:(n_year-1),inner=5),
+        year = repeat(n_print:jump_print:(n_year),inner=5),
         strategy = repeat(["matching","alternate","switching","reversed","storage"],outer=n_year_printed),
         resources = zeros(n_year_printed*5),
         n_ind = zeros(n_year_printed*5),
@@ -289,7 +292,7 @@ function model(parameters::Dict, i_simul::Int64)
     n_predator = M_zero
     age = zeros(Int64 ,n_pop)
 
-    for i in 1:(n_year-1)
+    for i in 1:(n_year)
         #Allocation
         age = age .+ 1
         resources = rand(distribution_resources)
@@ -362,7 +365,7 @@ end
 
 #Make evolutionary simulation
 wd=pwd()*"/"
-replicator(wd,model,["write","jump_print","mu", "M_zero", "n_print","c","p","coef_a","coef_h"])
+replicator(wd,model,["write","jump_print","mu", "M_zero", "n_print","c","p","coef_a","coef_h","D_inc"])
 
 
 #To make ecology simulation (Need to be updated)
