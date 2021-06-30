@@ -254,7 +254,7 @@ function model(parameters::Dict, i_simul::Int64)
         fertilisation_rate = zeros(n_year_printed*5))
     elseif detail == 1
         df_res = DataFrame(i_simul=repeat([i_simul],inner=n_year_printed*n_pop),
-        year = repeat(n_print:jump_print:(n_year-1),inner=n_pop),
+        year = repeat(year_printed,inner=n_pop),
         ID = repeat(1:1:n_pop,outer=n_year_printed),
         strategy = zeros(n_year_printed * n_pop),
         resources = zeros(n_year_printed*n_pop),
@@ -337,16 +337,16 @@ function model(parameters::Dict, i_simul::Int64)
                 df_res.fertilisation_rate[interval] = [mean((population .== 1) .* fertilisation_rate),mean((population .== 2) .* fertilisation_rate),mean((population .== 3) .* fertilisation_rate),mean((population .== 4) .* fertilisation_rate),mean((population .== 5) .* fertilisation_rate)]
             elseif detail == 1
                 interval = (n_pop*(floor(Int,(i-n_print)/jump_print))+1):n_pop*(1+floor(Int,(i-n_print)/jump_print))
-                df_res.strategy[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = population
-                df_res.resources[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([resources],n_pop)
-                df_res.age[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = age
-                df_res.alpha[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = alpha
-                df_res.n_flowers[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_flowers
-                df_res.fertilisation_rate[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = fertilisation_rate
-                df_res.n_seeds[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = n_seeds
-                df_res.stock[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = stock
-                df_res.n_predator[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_predator],n_pop)
-                df_res.n_dead[(n_pop*(floor(Int,i/jump_print)-n_print)+1):(n_pop*(1+floor(Int,i/jump_print)-n_print))] = repeat([n_dead],n_pop)
+                df_res.strategy[interval] = population
+                df_res.resources[interval] = repeat([resources],n_pop)
+                df_res.age[interval] = age
+                df_res.alpha[interval] = alpha
+                df_res.n_flowers[interval] = n_flowers
+                df_res.fertilisation_rate[interval] = fertilisation_rate
+                df_res.n_seeds[interval] = n_seeds
+                df_res.stock[interval] = stock
+                df_res.n_predator[interval] = repeat([n_predator],n_pop)
+                df_res.n_dead[interval] = repeat([n_dead],n_pop)
             end
         end
 
