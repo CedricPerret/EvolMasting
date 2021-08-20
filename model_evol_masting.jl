@@ -221,7 +221,9 @@ function functional_response(n_total_seeds,a,h)
 end
 
 function calculate_gamma(gamma_zero, n_total_seeds, n_predator, a, h)
-    if gamma_zero != 0
+    if n_total_seeds == 0
+        gamma = 0.
+    elseif gamma_zero != 0
         gamma = gamma_zero
     else
         gamma = 1 - exp(-(functional_response(n_total_seeds,a, h)*n_predator)/n_total_seeds)
@@ -251,6 +253,7 @@ function model(parameters::Dict, i_simul::Int64)
         n_dead = zeros(n_year_printed*5),
         gamma = zeros(n_year_printed*5),
         total_seeds = zeros(n_year_printed*5),
+        total_flowers = zeros(n_year_printed*5),
         fertilisation_rate = zeros(n_year_printed*5))
     elseif detail == 1
         df_res = DataFrame(i_simul=repeat([i_simul],inner=n_year_printed*n_pop),
@@ -334,6 +337,7 @@ function model(parameters::Dict, i_simul::Int64)
                 df_res.n_dead[interval] = repeat([n_dead],5)
                 df_res.gamma[interval] = repeat([gamma],5)
                 df_res.total_seeds[interval] = bank_seeds
+                df_res.total_flowers[interval] = [sum((population .== 1) .* n_flowers),sum((population .== 2) .* n_flowers),sum((population .== 3) .* n_flowers),sum((population .== 4) .* n_flowers),sum((population .== 5) .* n_flowers)]
                 df_res.fertilisation_rate[interval] = [mean((population .== 1) .* fertilisation_rate),mean((population .== 2) .* fertilisation_rate),mean((population .== 3) .* fertilisation_rate),mean((population .== 4) .* fertilisation_rate),mean((population .== 5) .* fertilisation_rate)]
             elseif detail == 1
                 interval = (n_pop*(floor(Int,(i-n_print)/jump_print))+1):n_pop*(1+floor(Int,(i-n_print)/jump_print))
