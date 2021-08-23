@@ -71,10 +71,12 @@ function parse_commandline()
         "-p" 
             arg_type = Float64
             help = "proportion of resources ALWAYS allocated to reproduction"
+        #Set up how quickly maximum predation is reached ()
         "--coef_a" 
             arg_type = Float64
             help = "Coefficient for functional response"
             dest_name = "a"
+        #Maximum amount 1 - exp(-1/h). Set how maximum predation pressure 
         "--coef_h" 
             arg_type = Float64
             help = "handling rate for functional response"
@@ -183,7 +185,7 @@ function replicator(wd::String, name_model, parameters_to_omit)
 end
 
 
-function calculate_alpha(strategy, resources, stock,thr_swit, thr_stor, N_y, age, p)
+function calculate_alpha(strategy, resources, stock,thr_swit, thr_rev, thr_stor, N_y, age, p)
     #Matching
     if strategy == 1
         return(1.)
@@ -195,7 +197,7 @@ function calculate_alpha(strategy, resources, stock,thr_swit, thr_stor, N_y, age
         return(p + (1-p)*(resources > thr_swit))
     #Reverse switching
     elseif strategy == 4
-    return(p + (1-p)*(resources < thr_rev))
+        return(p + (1-p)*(resources < thr_rev))
     #Storage
     elseif strategy == 5
         return(p + (1-p)*(stock > thr_stor))
@@ -300,7 +302,7 @@ function model(parameters::Dict, i_simul::Int64)
         #Allocation
         age = age .+ 1
         resources = rand(distribution_resources)
-        alpha = calculate_alpha.(population, resources, stock,thr_swit, thr_stor, N_y, age, p)
+        alpha = calculate_alpha.(population, resources, stock,thr_swit, thr_rev,thr_stor, N_y, age, p)
         n_flowers = alpha .* (stock .+ resources) 
         stock = (1 .- alpha) .* (stock .+ resources)
           
@@ -373,7 +375,7 @@ end
 
 #Make evolutionary simulation
 wd=pwd()*"/"
-replicator(wd,model,["write","jump_print","mu", "M_zero", "n_print","c","p","coef_a","coef_h","D_inc"])
+replicator(wd,model,["write","jump_print","mu", "M_zero", "n_print","p","coef_a","coef_h","D_inc","thr_swi","thr_stor"])
 
 
 #To make ecology simulation (Need to be updated)
