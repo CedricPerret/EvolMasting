@@ -8,7 +8,7 @@ using StatsBase
 using LinearAlgebra
 using BenchmarkTools
 #include("/mnt/c/Users/cedri/OneDrive/Research/B1-Codes/Utility.jl")
-
+include("generate_thr_storage.jl")
 
 function parse_commandline()
     s = ArgParseSettings()
@@ -62,12 +62,15 @@ function parse_commandline()
         "--thr_swit"
             arg_type = Float64
             help = "Threshold for switching"
+            default = -1.
         "--thr_rev"
             arg_type = Float64
-            help = "Threshold for switching"
+            help = "Threshold for reversed switching"
+            default = -1.
         "--thr_stor"
             arg_type = Float64
             help = "Threshold for storage"
+            default = -1.
         "-p" 
             arg_type = Float64
             help = "proportion of resources ALWAYS allocated to reproduction"
@@ -164,6 +167,16 @@ end
 function replicator(wd::String, name_model, parameters_to_omit)
     #If on my directory and to print in Res
     parameters = parse_commandline()
+    if parameters["thr_stor"] == -1
+        parameters["thr_stor"] = estimate_thr_storage(parameters["N_y"],Truncated(Normal(parameters["mean_K"],parameters["sigma_K"]),0,Inf),"simulate")
+    end
+    if parameters["thr_swit"] == -1
+        parameters["thr_swit"] = quantile(Truncated(Normal(parameters["mean_K"],parameters["sigma_K"]),0,Inf), 1 - (1 / parameters["N_y"]))
+    end
+    if parameters["thr_rev"] == -1
+        parameters["thr_rev"] = quantile(Truncated(Normal(parameters["mean_K"],parameters["sigma_K"]),0,Inf), 1 / parameters["N_y"])
+    end
+
     df_res= DataFrame()
     #Could be done with list comprehension?
     #Maybe with @sync @distributed
@@ -233,6 +246,8 @@ function calculate_gamma(gamma_zero, n_total_seeds, n_predator, a, h)
     return(gamma)
 end
 
+
+
 function model(parameters::Dict, i_simul::Int64)
     #Set parameters from dictionaries to local variable (only to improve readability)
     for key in keys(parameters) eval(:($(Symbol(key)) = $(parameters[key]))) end
@@ -297,7 +312,9 @@ function model(parameters::Dict, i_simul::Int64)
     fitness = zeros(n_pop)  
     n_predator = M_zero
     age = zeros(Int64 ,n_pop)
-
+    println("thr_stor",thr_stor)
+    println("thr_swit",thr_swit)
+    println("thr_rev",thr_rev)
     for i in 1:(n_year)
         #Allocation
         age = age .+ 1
@@ -383,4 +400,7 @@ replicator(wd,model,["write","jump_print","mu", "M_zero", "n_print","p","coef_a"
 #for key in keys(parameters) eval(:($(Symbol(key)) = $(parameters[key]))) end
 #df_res=model_ecology(n_step,[20,20,20], Truncated(Normal(mean_K,sigma_K),0,Inf), k, thr_swit, thr_stor, a_stor, a_swit, true)
 #CSV.write(wd*"valentin_trees_res.csv", df_res)
+
+
+
 
