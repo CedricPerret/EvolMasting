@@ -137,6 +137,14 @@ function get_name_model()
     end
 end
 
+function abbreviate_name(x)
+    if typeof(x) == Float64
+        return(round(x, digits=2))
+    else
+        return(x)
+    end
+end
+
 #To transform parameters into a string used for naming output file: name
 #Or just give short name to parameter
 function get_name_file(wd::String,parameters::Dict,parameters_to_omit::Array{String,1},format::String)
@@ -148,7 +156,7 @@ function get_name_file(wd::String,parameters::Dict,parameters_to_omit::Array{Str
     end
     #For having only the 3 letters after underscore
     #name_file=join(["-"*arg[1:(min(length(arg),findfirst("_",arg)[1]+3))] * "=" * string(val) for (arg,val) in parameters_copy],"")
-    name_file=join(["-"*arg * "=" * string(val) for (arg,val) in sort(parameters_copy)],"")
+    name_file=join(["-"*arg * "=" * string(abbreviate_name(val)) for (arg,val) in sort(parameters_copy)],"")
     return(wd*name_file*format)
 end
 
@@ -312,9 +320,7 @@ function model(parameters::Dict, i_simul::Int64)
     fitness = zeros(n_pop)  
     n_predator = M_zero
     age = zeros(Int64 ,n_pop)
-    println("thr_stor",thr_stor)
-    println("thr_swit",thr_swit)
-    println("thr_rev",thr_rev)
+
     for i in 1:(n_year)
         #Allocation
         age = age .+ 1
@@ -357,7 +363,7 @@ function model(parameters::Dict, i_simul::Int64)
                 df_res.gamma[interval] = repeat([gamma],5)
                 df_res.total_seeds[interval] = bank_seeds
                 df_res.total_flowers[interval] = [sum((population .== 1) .* n_flowers),sum((population .== 2) .* n_flowers),sum((population .== 3) .* n_flowers),sum((population .== 4) .* n_flowers),sum((population .== 5) .* n_flowers)]
-                df_res.fertilisation_rate[interval] = [mean((population .== 1) .* fertilisation_rate),mean((population .== 2) .* fertilisation_rate),mean((population .== 3) .* fertilisation_rate),mean((population .== 4) .* fertilisation_rate),mean((population .== 5) .* fertilisation_rate)]
+                df_res.fertilisation_rate[interval] = [mean(fertilisation_rate[population .== 1]),mean(fertilisation_rate[population .== 2]),mean(fertilisation_rate[population .== 3]),mean(fertilisation_rate[population .== 4]),mean(fertilisation_rate[population .== 5])]
             elseif detail == 1
                 interval = (n_pop*(floor(Int,(i-n_print)/jump_print))+1):n_pop*(1+floor(Int,(i-n_print)/jump_print))
                 df_res.strategy[interval] = population
