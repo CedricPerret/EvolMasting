@@ -7,6 +7,7 @@ using Distributed
 using StatsBase
 using LinearAlgebra
 using BenchmarkTools
+using Distances 
 #include("/mnt/c/Users/cedri/OneDrive/Research/B1-Codes/Utility.jl")
 include("generate_thr_storage.jl")
 
@@ -110,6 +111,13 @@ function parse_commandline()
         "--gamma_zero"
             arg_type = Float64
             help = "CONSTANT death rate of seeds"
+        "--dis"
+            arg_type = Float64
+            help = "Parameter for dispersal. Average distance made with exponential function for dispersal"
+            default = -1.
+        "--str_sel"
+            arg_type = Float64
+            help = "Strength of selection"
         end
     return parse_args(s)
 end
@@ -230,6 +238,12 @@ end
 function mutation(mu, strategy)
     if rand() < mu
         return(rand(deleteat!([1,2,3,4,5],strategy)))
+        #To consider only two strategies
+        # if strategy == 3
+        #     return(5)
+        # else
+        #     return(3)
+        # end
     else
         return(strategy)
     end
@@ -254,6 +268,22 @@ function calculate_gamma(gamma_zero, n_total_seeds, n_predator, a, h)
     return(gamma)
 end
 
+function create_map(N)
+    # x=repeat([collect(1:2:(sqrt(N)*2)) ; collect(2:2:(sqrt(N)*2))],Integer(sqrt(N)/2))
+    # y=repeat(collect(1:sqrt(N)),inner=Integer(sqrt(N)))
+
+    x=repeat(collect(1:sqrt(N)),Integer(sqrt(N)))
+    y=repeat(collect(1:sqrt(N)),inner=Integer(sqrt(N)))
+
+    return(tuple.(x,y))
+end
+
+
+#We use a thin tailed for now. Note that it means that at long distance, almost no seeds from far. If we want that, we need thin tailed.
+#Dispersal capacity = mean distance travelled with exponential
+function dispersal_function(distance,dispersal_capacity)
+    (1/(2*dispersal_capacity)) * exp(-abs(distance/dispersal_capacity))
+end
 
 
 function model(parameters::Dict, i_simul::Int64)
@@ -314,8 +344,24 @@ function model(parameters::Dict, i_simul::Int64)
     alpha = zeros(n_pop)
     fertilisation_rate = zeros(n_pop) 
     n_seeds = zeros(n_pop)
-    #n_surviving_seeds = zeros(n_pop)
-    bank_seeds = zeros(5)
+    n_surviving_seeds = zeros(n_pop)
+    #If unlimited dispersal, we count only the total for each strategy
+    if dis == -1
+        bank_seeds = zeros(5)
+    else
+        bank_seeds = zeros(5, n_pop)
+        coord_pop = create_map(n_pop)
+        #Matrix R[i,j] gives distance between 
+        distance_matrix = pairwise(Euclidean(), coord_pop, coord_pop)
+
+        # foreach(i -> distance_matrix[i, i] = 100, 1:20)
+        # distance_matrix=distance_matrix .- 2
+
+        dispersal_matrix = dispersal_function.(distance_matrix,dis)
+
+        #Proportion of seeds that each individual (row) send to patch (column)
+        # normalised_dispersal_matrix= dispersal_matrix ./ sum(dispersal_matrix,dims = 2)
+    end
     stock = zeros(n_pop)
     fitness = zeros(n_pop)  
     n_predator = M_zero
@@ -326,20 +372,37 @@ function model(parameters::Dict, i_simul::Int64)
         age = age .+ 1
         resources = rand(distribution_resources)
         alpha = calculate_alpha.(population, resources, stock,thr_swit, thr_rev,thr_stor, N_y, age, p)
-        n_flowers = alpha .* (stock .+ resources) 
+        n_flowers = (alpha .* (stock .+ resources))
         stock = (1 .- alpha) .* (stock .+ resources)
           
 
         #Fertilisation
         fertilisation_rate = calculate_fertilised_flowers.(sum(n_flowers).-n_flowers, n_pop, beta)  
-        #n_seeds = n_surviving_seeds .+ n_flowers .* fertilisation_rate 
-        n_seeds = n_flowers .* fertilisation_rate 
-        bank_seeds = bank_seeds .+ [sum((population .== 1) .* n_seeds),sum((population .== 2) .* n_seeds),sum((population .== 3) .* n_seeds),sum((population .== 4) .* n_seeds),sum((population .== 5) .* n_seeds)]
+        n_seeds = (n_flowers .* fertilisation_rate )
+
+        if dis == -1
+            bank_seeds = bank_seeds .+ [sum((population .== 1) .* n_seeds),sum((population .== 2) .* n_seeds),sum((population .== 3) .* n_seeds),sum((population .== 4) .* n_seeds),sum((population .== 5) .* n_seeds)]
+        else
+            seeds_matrix = dispersal_matrix .* n_seeds
+            bank_seeds = bank_seeds .+ [sum(seeds_matrix[population .== 1,:], dims = 1);
+            sum(seeds_matrix[population .== 2,:], dims = 1);
+            sum(seeds_matrix[population .== 3,:], dims = 1);
+            sum(seeds_matrix[population .== 4,:], dims = 1);
+            sum(seeds_matrix[population .== 5,:], dims = 1)]
+        end
 
         #Predation
         gamma = calculate_gamma(gamma_zero, sum(bank_seeds), n_predator, a, h)
         n_predator = c * sum(bank_seeds) * gamma
         bank_seeds = (1 .- gamma) .* bank_seeds
+
+        #Version with dispersal (We need to describe the seeds of each individual)
+        #WARNING: This would work only without bank seeds and surviving seeds because it considers that seeds of dead disappear
+        # n_seeds = n_flowers .* fertilisation_rate 
+        # #Predation
+        # gamma = calculate_gamma(gamma_zero, sum(n_seeds), n_predator, a, h)
+        # n_predator = c * sum(n_seeds) * gamma
+        # n_seeds = (1 .- gamma) .* n_seeds
         
 
         
@@ -361,7 +424,11 @@ function model(parameters::Dict, i_simul::Int64)
                 df_res.resources[interval] = repeat([resources],5)
                 df_res.n_dead[interval] = repeat([n_dead],5)
                 df_res.gamma[interval] = repeat([gamma],5)
-                df_res.total_seeds[interval] = bank_seeds
+                if dis == -1
+                    df_res.total_seeds[interval] = bank_seeds
+                else
+                    df_res.total_seeds[interval] = sum(bank_seeds,dims=2)
+                end
                 df_res.total_flowers[interval] = [sum((population .== 1) .* n_flowers),sum((population .== 2) .* n_flowers),sum((population .== 3) .* n_flowers),sum((population .== 4) .* n_flowers),sum((population .== 5) .* n_flowers)]
                 df_res.fertilisation_rate[interval] = [mean(fertilisation_rate[population .== 1]),mean(fertilisation_rate[population .== 2]),mean(fertilisation_rate[population .== 3]),mean(fertilisation_rate[population .== 4]),mean(fertilisation_rate[population .== 5])]
             elseif detail == 1
@@ -379,15 +446,39 @@ function model(parameters::Dict, i_simul::Int64)
             end
         end
 
+
+        #Reproduction with dispersal
+        #WARNING: This would work only without bank seeds and surviving seeds because it considers that seeds of dead disappear
+        # deads = sample(1:n_pop,n_dead,replace=false)
+        # for i_dead in deads
+        #     #We draw random neighbours besides the dead individual
+        #     distance_with_dead = euclidean.(Ref(coord_pop[i_dead]), coord_pop)
+        #     n_seeds_dispersed_to_empty_patch = dispersal_function.(distance_with_dead,dis) .* n_seeds
+        #     parent = sample(population, Weights(n_seeds_dispersed_to_empty_patch))
+        #     splice!(population,i_dead,mutation(mu, parent ))
+        #     stock[i_dead] = 0
+        #     age[i_dead] = 0
+        #     #n_surviving_seeds[dead] = 0 
+        # end
+
         #Reproduction
         deads = sample(1:n_pop,n_dead,replace=false)
         for i_dead in deads
-            parent = sample(1:5, Weights(bank_seeds))
+            if dis == -1
+                #parent = sample(1:5, Weights(bank_seeds))
+                parent = sample(1:5, Weights(bank_seeds .^ str_sel))
+
+            else
+                parent = sample(1:5, Weights(bank_seeds[:,i_dead] .^ str_sel))
+            end
             splice!(population,i_dead,mutation(mu, parent ))
             stock[i_dead] = 0
             age[i_dead] = 0
             #n_surviving_seeds[dead] = 0 
         end
+
+
+
         #Migration for predators
         if n_predator == 0
             n_predator = M_zero
@@ -398,7 +489,7 @@ end
 
 #Make evolutionary simulation
 wd=pwd()*"/"
-replicator(wd,model,["write","jump_print","mu", "M_zero", "n_print","p","coef_a","coef_h","D_inc","thr_swi","thr_stor"])
+replicator(wd,model,["write","jump_print","mu", "M_zero", "n_print","p","coef_a","coef_h","D_inc","thr_swi","thr_stor","mean_K","sigma_K"])
 
 
 #To make ecology simulation (Need to be updated)
@@ -406,7 +497,4 @@ replicator(wd,model,["write","jump_print","mu", "M_zero", "n_print","p","coef_a"
 #for key in keys(parameters) eval(:($(Symbol(key)) = $(parameters[key]))) end
 #df_res=model_ecology(n_step,[20,20,20], Truncated(Normal(mean_K,sigma_K),0,Inf), k, thr_swit, thr_stor, a_stor, a_swit, true)
 #CSV.write(wd*"valentin_trees_res.csv", df_res)
-
-
-
 
